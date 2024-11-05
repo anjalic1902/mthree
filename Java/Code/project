@@ -1,0 +1,108 @@
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+
+public class NetworkEventPerformance {
+    private static final String DB_URL = "jdbc:mysql://localhost:3306/TelecomNetworkPerformance"; // Update with your database URL
+    private static final String USER = "root"; // Update with your database username
+    private static final String PASSWORD = "root"; // Update with your database password
+
+    public static void main(String[] args) {
+        try (Connection connection = DriverManager.getConnection(DB_URL, USER, PASSWORD);
+             Statement statement = connection.createStatement()) {
+
+            // Insert 1 million users
+            long startTime = System.nanoTime();
+            String insertUsers = "INSERT INTO Users (UserID, Name, PlanType) " +
+                                 "SELECT num, MD5(RAND()), " +
+                                 "CASE WHEN RAND() < 0.5 THEN 'Basic' ELSE 'Premium' END " +
+                                 "FROM (SELECT @rownum:=@rownum+1 AS num " +
+                                 "FROM (SELECT 0 UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 " +
+                                 "UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9) AS a, " +
+                                 "(SELECT 0 UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 " +
+                                 "UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9) AS b, " +
+                                 "(SELECT @rownum:=0) AS r LIMIT 1000000) AS temp;";
+            statement.executeUpdate(insertUsers);
+            long elapsedTime = System.nanoTime() - startTime;
+            System.out.println("Time taken to insert 1 million users: " + (elapsedTime / 1_000_000) + " ms");
+
+            // Insert 1000 towers
+            startTime = System.nanoTime();
+            String insertTowers = "INSERT INTO Towers (TowerID, Location, Capacity) " +
+                                  "SELECT num, MD5(RAND()), FLOOR(RAND() * 1000 + 100) " +
+                                  "FROM (SELECT @rownum:=@rownum+1 AS num " +
+                                  "FROM (SELECT 0 UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 " +
+                                  "UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9) AS a, " +
+                                  "(SELECT @rownum:=0) AS r LIMIT 1000) AS temp;";
+            statement.executeUpdate(insertTowers);
+            elapsedTime = System.nanoTime() - startTime;
+            System.out.println("Time taken to insert 1000 towers: " + (elapsedTime / 1_000_000) + " ms");
+
+            // Insert 10 services
+            startTime = System.nanoTime();
+            String insertServices = "INSERT INTO Services (ServiceID, ServiceName, ServiceType) " +
+                                    "SELECT num, MD5(RAND()), " +
+                                    "CASE WHEN RAND() < 0.33 THEN 'Voice' WHEN RAND() < 0.66 THEN 'Data' ELSE 'SMS' END " +
+                                    "FROM (SELECT @rownum:=@rownum+1 AS num " +
+                                    "FROM (SELECT 0 UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 " +
+                                    "UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9) AS a, " +
+                                    "(SELECT @rownum:=0) AS r LIMIT 10) AS temp;";
+            statement.executeUpdate(insertServices);
+            elapsedTime = System.nanoTime() - startTime;
+            System.out.println("Time taken to insert 10 services: " + (elapsedTime / 1_000_000) + " ms");
+
+            // Insert 6 million network events
+            startTime = System.nanoTime();
+            String insertNetworkEvents = "INSERT INTO NetworkEvents (EventID, UserID, TowerID, ServiceID, EventTime, Duration, DataUsed) " +
+                                         "SELECT num, " +
+                                         "FLOOR(RAND() * 1000000) + 1, " + // Random UserID between 1 and 1,000,000
+                                         "FLOOR(RAND() * 1000) + 1, " + // Random TowerID between 1 and 1,000
+                                         "FLOOR(RAND() * 10) + 1, " + // Random ServiceID between 1 and 10
+                                         "NOW() - INTERVAL FLOOR(RAND() * 30) DAY, " + // Random EventTime within the last 30 days
+                                         "FLOOR(RAND() * 60), " + // Random Duration between 0 and 60 minutes
+                                         "FLOOR(RAND() * 1000) " + // Random DataUsed between 0 and 1000 MB
+                                         "FROM (SELECT @rownum:=@rownum+1 AS num " +
+                                         "FROM (SELECT 0 UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 " +
+                                         "UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9) AS a, " +
+                                         "(SELECT @rownum:=0) AS r LIMIT 6000000) AS temp;";
+            statement.executeUpdate(insertNetworkEvents);
+            elapsedTime = System.nanoTime() - startTime;
+            System.out.println("Time taken to insert 6 million network events: " + (elapsedTime / 1_000_000) + " ms");
+
+            // Query performance data for the last 7 days
+            String query = "SELECT " +
+                           "t.Location, " +
+                           "s.ServiceType, " +
+                           "HOUR(ne.EventTime) AS Hour, " +
+                           "AVG(ne.Duration) AS AvgDuration, " +
+                           "SUM(ne.DataUsed) AS TotalDataUsed " +
+                           "FROM NetworkEvents ne " +
+                           "JOIN Towers t ON ne.TowerID = t.TowerID " +
+                           "JOIN Services s ON ne.ServiceID = s.ServiceID " +
+                           "WHERE ne.EventTime >= NOW() - INTERVAL 7 DAY " +
+                           "GROUP BY t.Location, s.ServiceType, HOUR(ne.EventTime) " +
+                           "ORDER BY t.Location, s.ServiceType, Hour";
+
+            startTime = System.nanoTime();
+            try (ResultSet resultSet = statement.executeQuery(query)) {
+                while (resultSet.next()) {
+                    String location = resultSet.getString("Location");
+                    String serviceType = resultSet.getString("ServiceType");
+                    int hour = resultSet.getInt("Hour");
+                    double avgDuration = resultSet.getDouble("AvgDuration");
+                    int totalDataUsed = resultSet.getInt("TotalDataUsed");
+
+                    System.out.printf("Location: %s, Service Type: %s, Hour: %d, Avg Duration: %.2f, Total Data Used: %d MB%n",
+                            location, serviceType, hour, avgDuration, totalDataUsed);
+                }
+            }
+            elapsedTime = System.nanoTime() - startTime;
+            System.out.println("Time taken for querying performance data: " + (elapsedTime / 1_000_000) + " ms");
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+}
