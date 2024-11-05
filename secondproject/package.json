@@ -1,0 +1,21 @@
+{
+  "name": "secondproject",
+  "version": "1.0.0",
+  "description": "taskapplication",
+  "main": "index.js",
+  "scripts": {
+    "test": "{}"
+  },
+  "repository": {
+    "type": "git",
+    "url": "{}"
+  },
+  "keywords": [
+    "{}"
+  ],
+  "author": "anjali",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "secondproject": "file:"
+  }
+}
